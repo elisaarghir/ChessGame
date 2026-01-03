@@ -18,19 +18,27 @@ Chess game implementation in Java, focusing on core game logic and move validati
 ## How to Run
 Follow these steps to compile and execute the game from your terminal:
 
-1. Navigate to the source directory
-Open your terminal and enter the src folder:
+1. Navigate to the source directory. Open your terminal and enter the src folder:
 
 cd src/
 
-3. Compile the project
+3. Compile the project.
 Run the following command to compile the source code and link the external JSON library:
 
 javac -cp ".;..\lib\json-simple-1.1.1.jar" Main.java
 
-3. Run the application
+3. Run the application.
 Launch the game using this command:
 
 java -cp ".;..\lib\json-simple-1.1.1.jar" Main
 
-Note for Linux/Mac users: Replace the semicolon (;) with a colon (:) and backslashes with forward slashes in the -cp command.
+**Note for Linux/Mac users: Replace the semicolon (;) with a colon (:) and backslashes with forward slashes in the -cp command.**
+
+## Usage
+Upon starting the application, you will be greeted by the Main Menu:
+
+1. Login: Access an existing player account to resume progress or view stats.
+
+2. New Account: Create a new player profile.
+
+3. Exit: Safely terminate the application.
