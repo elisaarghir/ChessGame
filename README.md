@@ -22,7 +22,7 @@ Follow these steps to compile and execute the game from your terminal:
 
 cd src/
 
-3. Compile the project.
+2. Compile the project.
 Run the following command to compile the source code and link the external JSON library:
 
 javac -cp ".;..\lib\json-simple-1.1.1.jar" Main.java
