@@ -8,6 +8,8 @@ public class Game {
     private List<Move> moves;
     private int currentPlayerIndex;
     private Scanner scanner;
+    private ScoringStrategy scoringStrategy;
+    private GameObserver observer;
 
     public Game(int id, Player p1, Player p2) {
         this.idPlayer = id;
@@ -17,229 +19,68 @@ public class Game {
         this.moves = new ArrayList<>();
         this.currentPlayerIndex = 0;
         this.scanner = new Scanner(System.in);
+        this.scoringStrategy = new StandardScoringStrategy();
+    }
+
+    //strategia e apelata pentru a calcula punctele de resign
+    public void resign(User user) {
+        int bonus = scoringStrategy.getEndGameBonus("LOSS_RESIGN");
+        handleGameEnd(user, bonus, "DEFEAT (Resigned)");
+    }
+
+    public void handleGameEnd(User user, int bonusPoints, String resultMsg) {
+        int pointsFromPiecesY = 0;
+        Colors userColor = this.player1.getColor();
+
+        //se foloseste STRATEGY pentru a obtine punctajul pentru piesele capturate
+        for (Move m : this.moves) {
+            if (m.getPlayerColor() == userColor && m.getCapturedPiece() != null) {
+                pointsFromPiecesY += scoringStrategy.getPieceValue(m.getCapturedPiece());
+            }
+        }
+
+        int roundTotal = pointsFromPiecesY + bonusPoints;
+        int oldX = user.getPoints();
+        int newX = oldX + roundTotal;
+
+        user.setPoints(newX);
+        user.removeGame(this);
+
+        Main.getInstance().getGamesMap().remove(this.idPlayer);
+        Main.getInstance().write();
+
+        if (observer != null) {
+            observer.onGameEnd(resultMsg, pointsFromPiecesY, bonusPoints, newX);
+        }
+    }
+
+    public int getPlayerScore(Player p) {
+        int points = 0;
+        for (Move m : moves) {
+            if (m.getPlayerColor() == p.getColor() && m.getCapturedPiece() != null) {
+                points += scoringStrategy.getPieceValue(m.getCapturedPiece());
+            }
+        }
+        return points;
     }
 
     public void start(User currentUser, Map<Integer, Game> gamesMap) {
         board.initialize();
         moves.clear();
-
-        if (player1.getColor() == Colors.WHITE) {
-            currentPlayerIndex = 0;
-        } else {
-            currentPlayerIndex = 1;
-        }
-
-        playLoop(currentUser, gamesMap);
+        if (player1.getColor() == Colors.WHITE) currentPlayerIndex = 0;
+        else currentPlayerIndex = 1;
     }
 
-    public void resume(User currentUser, Map<Integer, Game> gamesMap) {
-        playLoop(currentUser, gamesMap);
+    //primeste un observator pe care il salveaza in memoria sa
+    public void setObserver(GameObserver observer) {
+        this.observer = observer;
     }
 
-    private void playLoop(User currentUser, Map<Integer, Game> gamesMap) {
-        boolean active = true;
-        System.out.println("\n--- GAME STARTED/RESUMED ---");
-        System.out.println("Commands: 'exit' (Save), 'resign' (Give Up), 'E2-E4' (Move) or 'E2' (Check moves)");
-
-        while (active) {
-            printBoard();
-            Player current = getCurrentPlayer();
-            System.out.println("Turn: " + current.getName() + " (" + current.getColor() + ")");
-
-            if (checkDraw()) {
-                System.out.println("DRAW DETECTED!");
-                handleGameEnd(currentUser, gamesMap, current, 150, 0);
-                active = false;
-                break;
-            }
-
-            if (checkForCheckMate()) {
-                System.out.println("CHECKMATE! Game Over.");
-                boolean humanLost = !current.getName().equalsIgnoreCase("Computer");
-
-                if (humanLost) {
-                    System.out.println("You LOST!");
-                    handleGameEnd(currentUser, gamesMap, current, -300, 0);
-                } else {
-                    System.out.println("You WON!");
-                    handleGameEnd(currentUser, gamesMap, current, 300, 1);
-                }
-                active = false;
-                break;
-            }
-
-            if (!current.getName().equalsIgnoreCase("Computer")) {
-                System.out.print("Action: ");
-                if (!scanner.hasNextLine()) { active = false; break; }
-                String input = scanner.nextLine().trim();
-
-                if (input.equalsIgnoreCase("exit")) {
-                    System.out.println("Game state saved. Returning to menu.");
-                    active = false;
-                    break;
-                }
-
-                if (input.equalsIgnoreCase("resign")) {
-                    System.out.println("You resigned.");
-                    handleGameEnd(currentUser, gamesMap, current, -150, 0);
-                    active = false;
-                    break;
-                }
-
-                processHumanMove(input, current);
-
-            } else {
-                System.out.println("Computer is thinking...");
-                try {
-                    Thread.sleep(800);
-                    makeComputerMove(current);
-
-                    Colors enemyColor = (current.getColor() == Colors.WHITE) ? Colors.BLACK : Colors.WHITE;
-                    if (board.isKingInCheck(enemyColor)) {
-                        System.out.println("CHECK!");
-                    }
-                    switchPlayer();
-                } catch (Exception e) {
-                    System.out.println("Computer error: " + e.getMessage());
-                    active = false;
-                }
-            }
-        }
-    }
-
-    private void processHumanMove(String input, Player current) {
-        if (input.contains("-")) {
-            try {
-                String[] parts = input.split("-");
-                if (parts.length != 2) throw new Exception("Invalid format.");
-                Position from = parsePosition(parts[0]);
-                Position to = parsePosition(parts[1]);
-
-                if (board.getPieceAt(from) == null) {
-                    System.out.println("No piece at start position.");
-                    return;
-                }
-
-                Piece captured = board.getPieceAt(to);
-                current.makeMove(from, to, board);
-                addMove(current, from, to, captured);
-
-                Colors enemyColor = (current.getColor() == Colors.WHITE) ? Colors.BLACK : Colors.WHITE;
-                if (board.isKingInCheck(enemyColor)) {
-                    System.out.println("CHECK!");
-                }
-
-                switchPlayer();
-
-            } catch (Exception e) {
-                System.out.println("Invalid move: " + e.getMessage());
-            }
-        } else {
-            try {
-                Position pos = parsePosition(input);
-                Piece p = board.getPieceAt(pos);
-
-                if (p == null) {
-                    System.out.println("No piece at " + pos);
-                } else if (p.getColor() != current.getColor()) {
-                    System.out.println("That is not your piece!");
-                } else {
-                    List<Position> moves = p.getPossibleMoves(board);
-                    System.out.print("Possible moves for " + p.type() + " at " + pos + ": ");
-                    boolean found = false;
-                    for (Position dest : moves) {
-                        if (board.isValidMove(pos, dest)) {
-                            System.out.print(dest + " ");
-                            found = true;
-                        }
-                    }
-                    if (!found) System.out.print("None");
-                    System.out.println();
-                }
-            } catch (Exception e) {
-                System.out.println("Invalid format. Use 'E2-E4' to move or 'E2' to see moves.");
-            }
-        }
-    }
-
-    private void makeComputerMove(Player computerPlayer) throws Exception {
-        computerPlayer.updateOwnedPieces(board);
-        List<ChessPair<Position, Piece>> pieces = computerPlayer.getOwnedPieces();
-        Collections.shuffle(pieces);
-
-        for (ChessPair<Position, Piece> pair : pieces) {
-            Piece p = pair.getValue();
-            List<Position> moves = p.getPossibleMoves(board);
-            Collections.shuffle(moves);
-
-            for (Position dest : moves) {
-                if (board.isValidMove(p.getPosition(), dest)) {
-                    Position start = p.getPosition();
-                    Piece captured = board.getPieceAt(dest);
-
-                    computerPlayer.makeMove(start, dest, board);
-                    addMove(computerPlayer, start, dest, captured);
-
-                    System.out.println("Computer moved: " + start + "-" + dest);
-                    return;
-                }
-            }
-        }
-    }
-
-    private void handleGameEnd(User user, Map<Integer, Game> map, Player current, int bonus, int winFlag) {
-        int X = user.getPoints();
-        int Y = 0;
-
-        if (!current.getName().equalsIgnoreCase("Computer") && winFlag == 0) {
-            Y = current.getPoints();
-        } else if (winFlag == 1) {
-            Player human = (player1.getName().equals("Computer")) ? player2 : player1;
-            Y = human.getPoints();
-        } else {
-            Player human = (player1.getName().equals("Computer")) ? player2 : player1;
-            Y = human.getPoints();
-        }
-
-        int finalPoints = X + Y + bonus;
-        if (finalPoints < 0) finalPoints = 0;
-
-        user.setPoints(finalPoints);
-
-        String formula = "X(" + X + ") + Y(" + Y + ")";
-        if (bonus > 0) formula += " + " + bonus;
-        else formula += " - " + Math.abs(bonus);
-
-        System.out.println("Points update: " + formula + " = " + finalPoints);
-        System.out.println("Press Enter to return to menu...");
-        scanner.nextLine();
-
-        user.removeGame(this);
-        map.remove(this.idPlayer);
-    }
-
-    public void printBoard() {
-        System.out.println("   A  B  C  D  E  F  G  H");
-        for (int row = 8; row >= 1; row--) {
-            System.out.print(row + "|");
-            for (char col = 'A'; col <= 'H'; col++) {
-                Piece p = board.getPieceAt(new Position(col, row));
-                if (p == null) System.out.print(" ..");
-                else System.out.print(" " + p.type() + (p.getColor() == Colors.WHITE ? "W" : "B"));
-            }
-            System.out.println("|" + row);
-        }
-    }
-
-    private Position parsePosition(String s) {
-        if (s == null || s.length() != 2) throw new IllegalArgumentException("Invalid coord");
-        char col = s.toUpperCase().charAt(0);
-        int row = Integer.parseInt(s.substring(1));
-        return new Position(col, row);
-    }
-
-    public void switchPlayer() {
-        currentPlayerIndex = (currentPlayerIndex == 0) ? 1 : 0;
+    public void addMove(Player p, Position from, Position to, Piece captured) {
+        Move m = new Move(p.getColor(), from, to, captured);
+        moves.add(m);
+        //se notifica observatorul
+        if (observer != null) observer.onMoveMade(m);
     }
 
     public boolean checkForCheckMate() {
@@ -264,26 +105,6 @@ public class Game {
         }
         if (hasLegalMove) return false;
         return board.isKingInCheck(myColor);
-    }
-
-    public void addMove(Player p, Position from, Position to, Piece captured) {
-        moves.add(new Move(p.getColor(), from, to, captured));
-    }
-
-    public Player getCurrentPlayer() {
-        return (currentPlayerIndex == 0) ? player1 : player2;
-    }
-
-    public Board getBoard() {
-        return board;
-    }
-
-    public int getId() {
-        return idPlayer;
-    }
-
-    public List<Move> getMoves() {
-        return moves;
     }
 
     public boolean checkDraw() {
@@ -316,4 +137,13 @@ public class Game {
 
         return jucatorCurentRepeta && adversarRepeta;
     }
+
+    public Player getCurrentPlayer() { return (currentPlayerIndex == 0) ? player1 : player2; }
+    public void switchPlayer() { currentPlayerIndex = (currentPlayerIndex == 0) ? 1 : 0; }
+    public Board getBoard() { return board; }
+    public List<Move> getMoves() { return moves; }
+    public int getId() { return idPlayer; }
+    public Player getPlayer1() { return player1; }
+    public Player getPlayer2() { return player2; }
+    public ScoringStrategy getScoringStrategy() { return scoringStrategy; }
 }

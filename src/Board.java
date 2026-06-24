@@ -1,4 +1,5 @@
 import java.util.*;
+import javax.swing.JOptionPane;
 
 public class Board {
     private TreeSet<ChessPair<Position, Piece>> pieces;
@@ -12,27 +13,30 @@ public class Board {
         char c;
 
         for (c = 'A'; c <= 'H'; c++) {
-            addPiece(new Pawn(Colors.WHITE, new Position(c, 2)));
-            addPiece(new Pawn(Colors.BLACK, new Position(c, 7)));
+            addPiece(PieceFactory.createPiece("P", Colors.WHITE, new Position(c, 2)));
+            addPiece(PieceFactory.createPiece("P", Colors.BLACK, new Position(c, 7)));
         }
 
-        addPiece(new Rook(Colors.WHITE, new Position('A', 1)));
-        addPiece(new Knight(Colors.WHITE, new Position('B', 1)));
-        addPiece(new Bishop(Colors.WHITE, new Position('C', 1)));
-        addPiece(new Queen(Colors.WHITE, new Position('D', 1)));
-        addPiece(new King(Colors.WHITE, new Position('E', 1)));
-        addPiece(new Bishop(Colors.WHITE, new Position('F', 1)));
-        addPiece(new Knight(Colors.WHITE, new Position('G', 1)));
-        addPiece(new Rook(Colors.WHITE, new Position('H', 1)));
+        //utilizez factory-ul creat pentru a aranja piesele pe tabla
+        //util deoarece clasa board nu trebuie sa cunoasca toate tipurile de piese
+        //ci le ia doar dupa initiale
+        addPiece(PieceFactory.createPiece("R", Colors.WHITE, new Position('A', 1)));
+        addPiece(PieceFactory.createPiece("N", Colors.WHITE, new Position('B', 1)));
+        addPiece(PieceFactory.createPiece("B", Colors.WHITE, new Position('C', 1)));
+        addPiece(PieceFactory.createPiece("Q", Colors.WHITE, new Position('D', 1)));
+        addPiece(PieceFactory.createPiece("K", Colors.WHITE, new Position('E', 1)));
+        addPiece(PieceFactory.createPiece("B", Colors.WHITE, new Position('F', 1)));
+        addPiece(PieceFactory.createPiece("N", Colors.WHITE, new Position('G', 1)));
+        addPiece(PieceFactory.createPiece("R", Colors.WHITE, new Position('H', 1)));
 
-        addPiece(new Rook(Colors.BLACK, new Position('A', 8)));
-        addPiece(new Knight(Colors.BLACK, new Position('B', 8)));
-        addPiece(new Bishop(Colors.BLACK, new Position('C', 8)));
-        addPiece(new Queen(Colors.BLACK, new Position('D', 8)));
-        addPiece(new King(Colors.BLACK, new Position('E', 8)));
-        addPiece(new Bishop(Colors.BLACK, new Position('F', 8)));
-        addPiece(new Knight(Colors.BLACK, new Position('G', 8)));
-        addPiece(new Rook(Colors.BLACK, new Position('H', 8)));
+        addPiece(PieceFactory.createPiece("R", Colors.BLACK, new Position('A', 8)));
+        addPiece(PieceFactory.createPiece("N", Colors.BLACK, new Position('B', 8)));
+        addPiece(PieceFactory.createPiece("B", Colors.BLACK, new Position('C', 8)));
+        addPiece(PieceFactory.createPiece("Q", Colors.BLACK, new Position('D', 8)));
+        addPiece(PieceFactory.createPiece("K", Colors.BLACK, new Position('E', 8)));
+        addPiece(PieceFactory.createPiece("B", Colors.BLACK, new Position('F', 8)));
+        addPiece(PieceFactory.createPiece("N", Colors.BLACK, new Position('G', 8)));
+        addPiece(PieceFactory.createPiece("R", Colors.BLACK, new Position('H', 8)));
     }
 
     public void addPiece(Piece p) {
@@ -59,10 +63,6 @@ public class Board {
         }
     }
 
-    //sterg din ChessPair perechea de pe pozitia de la from, in cazul in care e vorba de
-    //o miscare valida, pentru a elimina patratelul in care se afla
-    //de asemenea, daca urmeaza sa ma duc pe o pozitie valida si acolo se afla o piesa,
-    //o capturez si o elimin de pe tabla de sah
     public void movePiece(Position from, Position to) throws InvalidMoveException {
         Piece p = getPieceAt(from);
         Piece nextP = getPieceAt(to);
@@ -81,19 +81,30 @@ public class Board {
         addPiece(p);
     }
 
-    //dacă piesa mutată este un pion care, în urma mutării, ajunge pe ultima linie a tablei,
-    //acesta trebuie promovat într-o altă piesă
     private Piece checkPawn(Piece p) {
         if (p instanceof Pawn) {
-            if (p.getColor() == Colors.WHITE) {
-                if (p.getPosition().getY() == 8) {
-                    return new Queen(Colors.WHITE, p.getPosition());
-                }
-            }
-            else if (p.getColor() == Colors.BLACK) {
-                if (p.getPosition().getY() == 1) {
-                    return new Queen(Colors.BLACK, p.getPosition());
-                }
+            boolean isWhiteAtEnd = (p.getColor() == Colors.WHITE && p.getPosition().getY() == 8);
+            boolean isBlackAtEnd = (p.getColor() == Colors.BLACK && p.getPosition().getY() == 1);
+
+            if (isWhiteAtEnd || isBlackAtEnd) {
+                String promotionType = "Q";
+
+                String[] options = {"Queen", "Rook", "Bishop", "Knight"};
+                int choice = JOptionPane.showOptionDialog(null,
+                        "Choose piece for promotion:",
+                        "Pawn Promotion",
+                        JOptionPane.DEFAULT_OPTION,
+                        JOptionPane.QUESTION_MESSAGE,
+                        null, options, options[0]);
+
+                if (choice == 1) promotionType = "R";
+                else if (choice == 2) promotionType = "B";
+                else if (choice == 3) promotionType = "N";
+                else promotionType = "Q";
+
+                //preia tipul ales de la utilizator si il transforma intr-o piesa
+                //utilizand factory-ul
+                return PieceFactory.createPiece(promotionType, p.getColor(), p.getPosition());
             }
         }
         return p;
@@ -114,8 +125,6 @@ public class Board {
                 Piece target = getPieceAt(to);
                 Position startPos = p.getPosition();
 
-                //daca exista vreo piesa unde trebuie sa ajung, o elimin
-                //eliberez si casuta de unde plec
                 removePieceAt(from);
                 if (target != null) {
                     removePieceAt(to);
@@ -123,10 +132,7 @@ public class Board {
                 p.setPosition(to);
                 addPiece(p);
 
-                //verific ca regele sa nu fie expus in cazul mutarii si sa nu se afle in sah
                 valid = !isKingInCheck(p.getColor());
-
-                //pun inapoi piesa pe tabla
                 removePieceAt(to);
                 p.setPosition(startPos);
                 addPiece(p);
@@ -140,10 +146,6 @@ public class Board {
         return false;
     }
 
-    //verific cu aceasta functie daca regele se afla in pozitie de sah
-    //initial, caut regele de culoarea din argument, printre toate piesele
-    //cu o variabila isCheck retin daca regele se afla in pozitie de sah,
-    //adica daca vreunul din adversarii sai il poate ataca
     public boolean isKingInCheck(Colors color) {
         Position kingPos = null;
         boolean foundKing = false;

@@ -27,8 +27,6 @@ public class Player {
             throw new InvalidMoveException("You can only move your own pieces.");
         }
 
-        //mut piesa in pozitia to, iar daca acolo se afla deja o piesa, o
-        //capturez si updatez punctele
         board.movePiece(from, to);
         if (target != null) {
             capturedPieces.add(target);
@@ -38,7 +36,6 @@ public class Player {
         updateOwnedPieces(board);
     }
 
-    //ma uit care piese de pe tabla au aceeasi culoare cu a mea si le adaug
     public void updateOwnedPieces(Board board) {
         ownedPieces.clear();
         for (ChessPair<Position, Piece> pair : board.getPieces()) {
